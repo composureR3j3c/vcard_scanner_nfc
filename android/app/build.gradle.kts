@@ -9,6 +9,7 @@ android {
     namespace = "com.example.nfc_digital_card"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

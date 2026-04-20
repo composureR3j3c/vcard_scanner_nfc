@@ -1,18 +1,26 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:path_provider/path_provider.dart';
 
 class NFCWriter {
-  Future<void> writeVCard() async {
+  Future<String> writeVCard() async {
+    final completer = Completer<String>();
     final vcardString = _buildVCard21(
-      family: 'HR',
-      given: 'Abay',
-      additional: 'Bank',
-      formattedName: 'Abay Bank HR',
-      cellPhone: '+251115571674',
+      family: 'Gezahegne',
+      given: 'Bereket',
+      additional: 'Axum',
+      formattedName: 'Bereket Axum Gezahegne',
+      organization: 'Bank of Abyssinia S.Co.',
+      department: 'Auxiliary Infrastructure',
+      title: 'System Administrator',
+      email: 'BEREKET.AXUM@bankofabyssinia.com',
+      office: 'Head Office',
+      city: 'Addis Ababa',
+      country: 'ET',
+      cellPhones: const ['+251912356845', '+251713586845'],
     );
     final isValidVCard = _isValidVCard(vcardString);
 
@@ -68,14 +76,22 @@ class NFCWriter {
           NfcManager.instance.stopSession(
             alertMessage: 'Contact written successfully',
           );
+          if (!completer.isCompleted) {
+            completer.complete(vcardString);
+          }
         } catch (e) {
           _log('NFCWriter: write failed: $e');
           NfcManager.instance.stopSession(
             errorMessage: 'Write failed: $e',
           );
+          if (!completer.isCompleted) {
+            completer.completeError(e);
+          }
         }
       },
     );
+
+    return completer.future;
   }
 
   bool _isValidVCard(String value) {
@@ -84,6 +100,9 @@ class NFCWriter {
         normalized.contains('\nVERSION:2.1') &&
         normalized.contains('\nN:') &&
         normalized.contains('\nFN:') &&
+        normalized.contains('\nORG:') &&
+        normalized.contains('\nTITLE:') &&
+        normalized.contains('\nEMAIL;INTERNET:') &&
         normalized.contains('\nTEL;CELL:') &&
         normalized.endsWith('END:VCARD');
   }
@@ -95,17 +114,42 @@ class NFCWriter {
     String prefix = '',
     String suffix = '',
     required String formattedName,
-    required String cellPhone,
+    required String organization,
+    required String department,
+    required String title,
+    required String email,
+    required String office,
+    required String city,
+    required String country,
+    required List<String> cellPhones,
   }) {
+    final normalizedPhones = cellPhones
+        .map(_normalizePhoneNumber)
+        .where((phone) => phone.isNotEmpty)
+        .toList();
+
     final lines = [
       'BEGIN:VCARD',
       'VERSION:2.1',
       'N:$family;$given;$additional;$prefix;$suffix',
       'FN:$formattedName',
-      'TEL;CELL:$cellPhone',
+      'ORG:$organization;$department',
+      'TITLE:$title',
+      'EMAIL;INTERNET:$email',
+      'ADR;WORK:;;$office;$city;;;$country',
+      ...normalizedPhones.map((phone) => 'TEL;CELL:$phone'),
       'END:VCARD',
     ];
     return lines.join('\r\n');
+  }
+
+  String _normalizePhoneNumber(String phoneNumber) {
+    final trimmed = phoneNumber.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+
+    return trimmed.startsWith('+') ? trimmed : '+$trimmed';
   }
 
   Future<File> _saveVCardToFile(String vcardContent) async {
@@ -118,6 +162,5 @@ class NFCWriter {
 
   void _log(String message) {
     debugPrint(message);
-    print(message);
   }
 }

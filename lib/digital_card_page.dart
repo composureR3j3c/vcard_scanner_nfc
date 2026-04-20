@@ -26,10 +26,34 @@ class DigitalCardPage extends StatelessWidget {
                 );
 
                 try {
-                  await NFCWriter().writeVCard();
+                  final vcard = await NFCWriter().writeVCard();
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("NFC written successfully ✅")),
+                  );
+
+                  if (!context.mounted) {
+                    return;
+                  }
+
+                  await showDialog<void>(
+                    context: context,
+                    builder: (dialogContext) {
+                      return AlertDialog(
+                        title: const Text("Generated vCard"),
+                        content: SingleChildScrollView(
+                          child: SelectableText(vcard),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(dialogContext).pop();
+                            },
+                            child: const Text("Close"),
+                          ),
+                        ],
+                      );
+                    },
                   );
                 } catch (e) {
                   ScaffoldMessenger.of(context).showSnackBar(
