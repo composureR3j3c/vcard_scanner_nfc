@@ -6,6 +6,8 @@ import 'package:nfc_manager/nfc_manager.dart';
 import 'package:path_provider/path_provider.dart';
 
 class NFCWriter {
+  static const _vcardMimeType = 'text/x-vcard';
+
   Future<String> writeVCard() async {
     final completer = Completer<String>();
     final vcardString = _buildVCard21(
@@ -39,7 +41,7 @@ class NFCWriter {
 
     final record = NdefRecord(
       typeNameFormat: NdefTypeNameFormat.media,
-      type: Uint8List.fromList(utf8.encode('text/vcard')),
+      type: Uint8List.fromList(utf8.encode(_vcardMimeType)),
       identifier: Uint8List(0),
       payload: payload,
     );
@@ -67,7 +69,7 @@ class NFCWriter {
           }
 
           _log(
-            'NFCWriter: writing message with 1 record of type text/vcard',
+            'NFCWriter: writing message with 1 record of type $_vcardMimeType',
           );
           await ndef.write(NdefMessage([record]));
           _log('NFCWriter: write completed successfully');
