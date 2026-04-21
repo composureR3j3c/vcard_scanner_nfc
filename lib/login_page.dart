@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key, required this.onLogin});
 
-  final Future<void> Function(String email, String password) onLogin;
+  final Future<void> Function(String username, String password) onLogin;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -176,7 +176,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               const SizedBox(height: 14),
                               Text(
-                                'Enter your email and password to continue on this phone.',
+                                'Enter your work email or username and password to continue on this phone.',
                                 style: theme.textTheme.bodyMedium?.copyWith(
                                   color: const Color(0xB8111827),
                                   height: 1.45,
@@ -184,7 +184,7 @@ class _LoginPageState extends State<LoginPage> {
                               ),
                               const SizedBox(height: 24),
                               _FieldLabel(
-                                label: 'Email',
+                                label: 'Email or Username',
                                 child: _DecoratedField(
                                   leading: const Icon(
                                     Icons.mail_outline_rounded,
@@ -196,17 +196,14 @@ class _LoginPageState extends State<LoginPage> {
                                     keyboardType: TextInputType.emailAddress,
                                     textInputAction: TextInputAction.next,
                                     decoration: const InputDecoration(
-                                      hintText: 'Enter your email',
+                                      hintText: 'Enter your Email or Username',
                                       border: InputBorder.none,
                                       isDense: true,
                                     ),
                                     validator: (value) {
-                                      final email = value?.trim() ?? '';
-                                      if (email.isEmpty) {
-                                        return 'Email is required';
-                                      }
-                                      if (!email.contains('@')) {
-                                        return 'Enter a valid email';
+                                      final identifier = value?.trim() ?? '';
+                                      if (identifier.isEmpty) {
+                                        return 'Email or username is required';
                                       }
                                       return null;
                                     },

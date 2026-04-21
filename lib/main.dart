@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'auth_service.dart';
 import 'digital_card_page.dart';
 import 'login_page.dart';
 import 'session_store.dart';
+import 'session_user.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,8 +19,9 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   final SessionStore _sessionStore = SessionStore();
+  final AuthService _authService = AuthService();
   bool? _isLoggedIn;
-  String? _sessionEmail;
+  SessionUser? _sessionUser;
 
   @override
   void initState() {
@@ -28,24 +31,28 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> _loadSession() async {
     final isLoggedIn = await _sessionStore.isLoggedIn();
-    final email = await _sessionStore.getEmail();
+    final user = await _sessionStore.getUser();
 
     if (!mounted) {
       return;
     }
 
     setState(() {
-      _isLoggedIn = isLoggedIn;
-      _sessionEmail = email;
+      _isLoggedIn = isLoggedIn && user != null;
+      _sessionUser = user;
     });
   }
 
-  Future<void> _login(String email, String password) async {
+  Future<void> _login(String username, String password) async {
     if (password.trim().length < 6) {
       throw Exception('Password must be at least 6 characters');
     }
 
-    await _sessionStore.saveLogin(email: email);
+    final user = await _authService.login(
+      username: username.trim(),
+      password: password,
+    );
+    await _sessionStore.saveLogin(user: user);
 
     if (!mounted) {
       return;
@@ -53,7 +60,7 @@ class _MyAppState extends State<MyApp> {
 
     setState(() {
       _isLoggedIn = true;
-      _sessionEmail = email;
+      _sessionUser = user;
     });
   }
 
@@ -66,7 +73,7 @@ class _MyAppState extends State<MyApp> {
 
     setState(() {
       _isLoggedIn = false;
-      _sessionEmail = null;
+      _sessionUser = null;
     });
   }
 
@@ -75,14 +82,9 @@ class _MyAppState extends State<MyApp> {
     Widget home;
 
     if (_isLoggedIn == null) {
-      home = const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      home = const Scaffold(body: Center(child: CircularProgressIndicator()));
     } else if (_isLoggedIn == true) {
-      home = DigitalCardPage(
-        sessionEmail: _sessionEmail ?? '',
-        onLogout: _logout,
-      );
+      home = DigitalCardPage(sessionUser: _sessionUser!, onLogout: _logout);
     } else {
       home = LoginPage(onLogin: _login);
     }
