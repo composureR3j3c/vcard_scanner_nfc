@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -9,23 +7,25 @@ import 'employee_profile_service.dart';
 import 'nfc_writer.dart';
 import 'session_user.dart';
 import 'utils/vcard_generator.dart';
+import 'widgets/employee_id_deck.dart';
 
 class DigitalCardPage extends StatefulWidget {
   const DigitalCardPage({
     super.key,
     required this.sessionUser,
     required this.onLogout,
+    required this.onToggleTheme,
+    required this.themeMode,
   });
 
-  static const _backgroundTop = Color(0xFFFCFAF4);
-  static const _backgroundBottom = Color(0xFFF2EEE5);
   static const _cardGreenDeep = Color(0xFFD8A328);
   static const _cardGold = Color(0xFFD8A328);
   static const _textPrimary = Color(0xFF111827);
   static const _panelFill = Color(0xCCFFFFFF);
-  static const _detailFill = Color(0xCCF8F7F2);
   final SessionUser sessionUser;
   final Future<void> Function() onLogout;
+  final VoidCallback onToggleTheme;
+  final ThemeMode themeMode;
 
   @override
   State<DigitalCardPage> createState() => _DigitalCardPageState();
@@ -35,6 +35,7 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
   final EmployeeProfileService _profileService = EmployeeProfileService();
   late Future<EmployeeProfile> _profileFuture;
   String? _copiedValue;
+  bool _isRefreshing = false;
 
   @override
   void initState() {
@@ -78,8 +79,39 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
     });
   }
 
+  Future<void> _showRefreshLoading() async {
+    if (_isRefreshing) {
+      return;
+    }
+
+    setState(() {
+      _isRefreshing = true;
+    });
+
+    await Future<void>.delayed(const Duration(seconds: 1));
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _isRefreshing = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final backgroundTop = isDark
+        ? const Color(0xFF0B0F14)
+        : const Color(0xFFFCFAF4);
+    final backgroundBottom = isDark
+        ? const Color(0xFF121922)
+        : const Color(0xFFF2EEE5);
+    final textPrimary = isDark
+        ? const Color(0xFFF3F4F6)
+        : const Color(0xFF111827);
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -103,18 +135,17 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
               ),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Employee Workspace',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    'Employee\nWorkspace',
+                    maxLines: 2,
                     style: TextStyle(
                       color: DigitalCardPage._cardGreenDeep,
-                      fontSize: 11,
+                      fontSize: 9,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 2.6,
                     ),
@@ -125,8 +156,8 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: DigitalCardPage._textPrimary,
-                      fontSize: 28,
+                      color: textPrimary,
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       height: 1.05,
                     ),
@@ -137,6 +168,31 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
           ],
         ),
         actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: _isRefreshing
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
+                : IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: _showRefreshLoading,
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+          ),
+          IconButton(
+            tooltip: widget.themeMode == ThemeMode.dark
+                ? 'Switch to light theme'
+                : 'Switch to dark theme',
+            onPressed: widget.onToggleTheme,
+            icon: Icon(
+              widget.themeMode == ThemeMode.dark
+                  ? Icons.light_mode_rounded
+                  : Icons.dark_mode_rounded,
+            ),
+          ),
           IconButton(
             tooltip: 'Logout',
             onPressed: () async {
@@ -147,14 +203,11 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
         ],
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [
-              DigitalCardPage._backgroundTop,
-              DigitalCardPage._backgroundBottom,
-            ],
+            colors: [backgroundTop, backgroundBottom],
           ),
         ),
         child: Stack(
@@ -200,11 +253,13 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                               color: DigitalCardPage._cardGreenDeep,
                             ),
                             const SizedBox(height: 12),
-                            const Text(
+                            Text(
                               'Unable to load employee data.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: DigitalCardPage._textPrimary,
+                                color: isDark
+                                    ? const Color(0xFFF9FAFB)
+                                    : const Color(0xFF111827),
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -213,8 +268,10 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                             Text(
                               '${snapshot.error ?? 'Please try again.'}',
                               textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                color: Color(0xA6111827),
+                              style: TextStyle(
+                                color: isDark
+                                    ? const Color(0xB3F3F4F6)
+                                    : const Color(0xA6111827),
                                 fontSize: 14,
                                 height: 1.45,
                               ),
@@ -242,7 +299,7 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                       final isWide = constraints.maxWidth >= 760;
 
                       return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(20, 24, 20, 28),
+                        padding: const EdgeInsets.fromLTRB(10, 14, 10, 18),
                         child: Center(
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 980),
@@ -277,6 +334,10 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
     required EmployeeProfile profile,
     required String vcard,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark
+        ? const Color(0xFFF3F4F6)
+        : const Color(0xA6111827);
     final publicCardUrl =
         'https://businesscard.bankofabyssinia.com/u/${widget.sessionUser.username}';
 
@@ -294,23 +355,15 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Review both sides of your official identification below.',
-            style: TextStyle(
-              color: Color(0xA6111827),
-              fontSize: 14,
-              height: 1.45,
-            ),
+            style: TextStyle(color: titleColor, fontSize: 14, height: 1.45),
           ),
           const SizedBox(height: 18),
           Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
-              child: _EmployeeIdDeck(
-                profile: profile,
-                qrData: publicCardUrl,
-                employeeId: widget.sessionUser.id,
-              ),
+              child: EmployeeIdDeck(profile: profile, qrData: vcard),
             ),
           ),
         ],
@@ -386,14 +439,19 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
   }
 
   Widget _buildNfcButton(BuildContext context, String vcard) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
-        color: DigitalCardPage._panelFill,
-        border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
-        boxShadow: const [
+        color: isDark ? const Color(0xCC111827) : DigitalCardPage._panelFill,
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x140F172A),
+            color: isDark ? const Color(0x40000000) : const Color(0x140F172A),
             blurRadius: 36,
             offset: Offset(0, 14),
           ),
@@ -404,19 +462,23 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Write to NFC',
               style: TextStyle(
-                color: DigitalCardPage._textPrimary,
+                color: isDark
+                    ? const Color(0xFFF9FAFB)
+                    : DigitalCardPage._textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Tap below, then hold your phone near the NFC tag to save this contact card.',
               style: TextStyle(
-                color: Color(0xA6111827),
+                color: isDark
+                    ? const Color(0xCCF3F4F6)
+                    : const Color(0xA6111827),
                 fontSize: 14,
                 height: 1.45,
               ),
@@ -491,14 +553,19 @@ class _SurfacePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: DigitalCardPage._panelFill,
+        color: isDark ? const Color(0xCC111827) : const Color(0xCCFFFFFF),
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
-        boxShadow: const [
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x140F172A),
+            color: isDark ? const Color(0x40000000) : const Color(0x140F172A),
             blurRadius: 60,
             offset: Offset(0, 20),
           ),
@@ -522,9 +589,10 @@ class _DetailTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: DigitalCardPage._detailFill,
+        color: isDark ? const Color(0xCC1F2937) : const Color(0xCCF8F7F2),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Padding(
@@ -538,8 +606,10 @@ class _DetailTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     label,
-                    style: const TextStyle(
-                      color: Color(0x73111827),
+                    style: TextStyle(
+                      color: isDark
+                          ? const Color(0xB3F9FAFB)
+                          : const Color(0x73111827),
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 2.2,
@@ -555,8 +625,10 @@ class _DetailTile extends StatelessWidget {
               overflow: breakValue
                   ? TextOverflow.visible
                   : TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Color(0xCC111827),
+              style: TextStyle(
+                color: isDark
+                    ? const Color(0xFFF9FAFB)
+                    : const Color(0xCC111827),
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
                 height: 1.35,
@@ -582,6 +654,7 @@ class _PublicQrTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return LayoutBuilder(
       builder: (context, constraints) {
         final tileWidth = constraints.maxWidth.isFinite
@@ -592,7 +665,9 @@ class _PublicQrTile extends StatelessWidget {
 
         return DecoratedBox(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.8),
+            color: isDark
+                ? const Color(0xCC111827)
+                : Colors.white.withValues(alpha: 0.8),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Padding(
@@ -602,11 +677,13 @@ class _PublicQrTile extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Public QR',
                         style: TextStyle(
-                          color: Color(0x73111827),
+                          color: isDark
+                              ? const Color(0xB3F3F4F6)
+                              : const Color(0x73111827),
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 2.2,
@@ -624,7 +701,9 @@ class _PublicQrTile extends StatelessWidget {
                         size: 16,
                         color: copied
                             ? DigitalCardPage._cardGreenDeep
-                            : const Color(0x66111827),
+                            : (isDark
+                                  ? const Color(0x99E5E7EB)
+                                  : const Color(0x66111827)),
                       ),
                     ),
                   ],
@@ -670,7 +749,9 @@ class _PublicQrTile extends StatelessWidget {
                         'Scan to open public profile',
                         textAlign: TextAlign.center,
                         style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.4),
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.7)
+                              : Colors.black.withValues(alpha: 0.4),
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
                           height: 1.25,
@@ -683,7 +764,9 @@ class _PublicQrTile extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: Colors.black.withValues(alpha: 0.28),
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.58)
+                              : Colors.black.withValues(alpha: 0.28),
                           fontSize: 9.5,
                           fontWeight: FontWeight.w500,
                           height: 1.25,
@@ -714,6 +797,7 @@ class _QrCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return LayoutBuilder(
       builder: (context, constraints) {
         final cardWidth = constraints.maxWidth.isFinite
@@ -724,7 +808,9 @@ class _QrCard extends StatelessWidget {
 
         return DecoratedBox(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.62),
+            color: isDark
+                ? const Color(0xB31F2937)
+                : Colors.white.withValues(alpha: 0.62),
             borderRadius: BorderRadius.circular(24),
           ),
           child: Padding(
@@ -734,8 +820,10 @@ class _QrCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: DigitalCardPage._textPrimary,
+                  style: TextStyle(
+                    color: isDark
+                        ? const Color(0xFFF9FAFB)
+                        : const Color(0xFF111827),
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -743,8 +831,10 @@ class _QrCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   description,
-                  style: const TextStyle(
-                    color: Color(0xA6111827),
+                  style: TextStyle(
+                    color: isDark
+                        ? const Color(0xB3F3F4F6)
+                        : const Color(0xA6111827),
                     fontSize: 13,
                     height: 1.4,
                   ),
@@ -787,733 +877,6 @@ class _QrCard extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-class _EmployeeIdDeck extends StatelessWidget {
-  const _EmployeeIdDeck({
-    required this.profile,
-    required this.qrData,
-    required this.employeeId,
-  });
-
-  final EmployeeProfile profile;
-  final String qrData;
-  final String employeeId;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _EmployeeIdFront(profile: profile, employeeId: employeeId),
-        const SizedBox(height: 18),
-        _EmployeeIdBack(profile: profile, qrData: qrData),
-      ],
-    );
-  }
-}
-
-class _EmployeeIdFront extends StatelessWidget {
-  const _EmployeeIdFront({required this.profile, required this.employeeId});
-
-  final EmployeeProfile profile;
-  final String employeeId;
-
-  @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1.58,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final cardWidth = constraints.maxWidth;
-          final cardHeight = constraints.maxHeight;
-          final isCompact = cardWidth < 380 || cardHeight < 250;
-          final padding = math.min(
-            (cardWidth * 0.055).clamp(12.0, 22.0),
-            cardHeight * 0.08,
-          );
-          final photoSize = math.min(
-            (cardWidth * 0.31).clamp(74.0, 126.0),
-            cardHeight * (isCompact ? 0.32 : 0.44),
-          );
-          final logoSize = (cardWidth * 0.1).clamp(28.0, 40.0);
-          final nameSize = (cardWidth * 0.055).clamp(16.0, 22.0);
-          final titleSize = (cardWidth * 0.032).clamp(10.5, 13.0);
-          final metaSize = (cardWidth * 0.028).clamp(9.4, 11.2);
-          final accentCircle = cardWidth * 0.42;
-
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF0A4E3B), Color(0xFF073024)],
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x26073024),
-                  blurRadius: 34,
-                  offset: Offset(0, 18),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: -cardWidth * 0.12,
-                  right: -22,
-                  child: Container(
-                    width: accentCircle,
-                    height: accentCircle,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withValues(alpha: 0.05),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: -cardWidth * 0.11,
-                  left: -cardWidth * 0.06,
-                  child: Container(
-                    width: cardWidth * 0.37,
-                    height: cardWidth * 0.37,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: DigitalCardPage._cardGold.withValues(alpha: 0.14),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: cardWidth * 0.14,
-                  left: -cardWidth * 0.08,
-                  child: Transform.rotate(
-                    angle: -0.35,
-                    child: Container(
-                      width: cardWidth * 0.36,
-                      height: cardWidth * 0.4,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(36),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            DigitalCardPage._cardGold.withValues(alpha: 0.2),
-                            DigitalCardPage._cardGold.withValues(alpha: 0.02),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: -cardWidth * 0.07,
-                  right: cardWidth * 0.11,
-                  child: Transform.rotate(
-                    angle: 0.72,
-                    child: Container(
-                      width: (cardWidth * 0.2).clamp(56.0, 84.0),
-                      height: (cardWidth * 0.56).clamp(150.0, 220.0),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        color: Colors.white.withValues(alpha: 0.05),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.all(padding),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      if (isCompact)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _CardBrandHeader(logoSize: logoSize),
-                            SizedBox(
-                              height: (cardHeight * 0.035).clamp(6.0, 10.0),
-                            ),
-                            _CardIdPill(
-                              id: profile.id.isEmpty ? employeeId : profile.id,
-                            ),
-                          ],
-                        )
-                      else
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Expanded(child: _CardBrandHeader()),
-                            const SizedBox(width: 12),
-                            _CardIdPill(
-                              id: profile.id.isEmpty ? employeeId : profile.id,
-                            ),
-                          ],
-                        ),
-                      const Spacer(),
-                      if (isCompact)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: _ProfileBadge(
-                                profile: profile,
-                                size: photoSize,
-                                radius: (photoSize * 0.24).clamp(18.0, 28.0),
-                                showBorder: true,
-                                backgroundColor: DigitalCardPage._cardGold
-                                    .withValues(alpha: 0.16),
-                              ),
-                            ),
-                            SizedBox(
-                              height: (cardHeight * 0.03).clamp(6.0, 10.0),
-                            ),
-                            _FrontIdentityBlock(
-                              profile: profile,
-                              cardWidth: cardWidth,
-                              nameSize: nameSize,
-                              titleSize: titleSize,
-                              metaSize: metaSize,
-                              compact: true,
-                              tight: cardHeight < 235,
-                            ),
-                          ],
-                        )
-                      else
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Expanded(
-                              child: _FrontIdentityBlock(
-                                profile: profile,
-                                cardWidth: cardWidth,
-                                nameSize: nameSize,
-                                titleSize: titleSize,
-                                metaSize: metaSize,
-                                compact: false,
-                                tight: false,
-                              ),
-                            ),
-                            SizedBox(
-                              width: (cardWidth * 0.04).clamp(10.0, 16.0),
-                            ),
-                            _ProfileBadge(
-                              profile: profile,
-                              size: photoSize,
-                              radius: (photoSize * 0.24).clamp(20.0, 30.0),
-                              showBorder: true,
-                              backgroundColor: DigitalCardPage._cardGold
-                                  .withValues(alpha: 0.16),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _EmployeeIdBack extends StatelessWidget {
-  const _EmployeeIdBack({required this.profile, required this.qrData});
-
-  final EmployeeProfile profile;
-  final String qrData;
-
-  @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 1.58,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final cardWidth = constraints.maxWidth;
-          final cardHeight = constraints.maxHeight;
-          final isCompact = cardWidth < 340;
-          final padding = math.min(
-            (cardWidth * 0.055).clamp(12.0, 22.0),
-            cardHeight * 0.08,
-          );
-          final reservedHeight = padding * 2 + 14 + 12 + 44;
-          final availablePanelHeight = math.max(
-            72.0,
-            cardHeight - reservedHeight,
-          );
-          final qrSize = math.min(
-            (cardWidth * 0.34).clamp(88.0, 140.0),
-            availablePanelHeight * 0.78,
-          );
-
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              color: const Color(0xFFF8F5EC),
-              border: Border.all(color: const Color(0x140F172A)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x120F172A),
-                  blurRadius: 30,
-                  offset: Offset(0, 16),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Positioned(
-                  top: -cardWidth * 0.05,
-                  left: -cardWidth * 0.07,
-                  child: Container(
-                    width: cardWidth * 0.38,
-                    height: cardWidth * 0.38,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: DigitalCardPage._cardGold.withValues(alpha: 0.08),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  right: -cardWidth * 0.09,
-                  top: cardWidth * 0.055,
-                  child: Transform.rotate(
-                    angle: 0.32,
-                    child: Container(
-                      width: cardWidth * 0.38,
-                      height: cardWidth * 0.38,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(32),
-                        border: Border.all(
-                          color: DigitalCardPage._cardGreenDeep.withValues(
-                            alpha: 0.06,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: -cardWidth * 0.09,
-                  right: -cardWidth * 0.03,
-                  child: Transform.rotate(
-                    angle: -0.48,
-                    child: Container(
-                      width: (cardWidth * 0.3).clamp(80.0, 120.0),
-                      height: (cardWidth * 0.53).clamp(130.0, 210.0),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            DigitalCardPage._cardGreenDeep.withValues(
-                              alpha: 0.08,
-                            ),
-                            DigitalCardPage._cardGreenDeep.withValues(
-                              alpha: 0.0,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: 18,
-                  right: 18,
-                  top: 18,
-                  child: Opacity(
-                    opacity: 0.2,
-                    child: Row(
-                      children: List.generate(
-                        5,
-                        (index) => Expanded(
-                          child: Container(
-                            margin: EdgeInsets.only(right: index == 4 ? 0 : 8),
-                            height: 1,
-                            color: DigitalCardPage._cardGreenDeep,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.all(padding),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 14),
-                      Expanded(
-                        child: Center(
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: _BackQrPanel(qrData: qrData, qrSize: qrSize),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'This card is the property of Bank of Abyssinia. If found, please return it to the nearest branch or mail to P.O. Box 12947, Addis Ababa, Ethiopia.',
-                        style: TextStyle(
-                          color: const Color(0xB3111827),
-                          fontSize: isCompact ? 10 : 10.8,
-                          height: 1.35,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ProfileBadge extends StatelessWidget {
-  const _ProfileBadge({
-    required this.profile,
-    required this.size,
-    required this.radius,
-    this.showBorder = false,
-    this.backgroundColor,
-  });
-
-  final EmployeeProfile profile;
-  final double size;
-  final double radius;
-  final bool showBorder;
-  final Color? backgroundColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final photoBytes = profile.photoBytes;
-
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.white.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(radius),
-        border: showBorder
-            ? Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.8)
-            : null,
-        boxShadow: showBorder
-            ? const [
-                BoxShadow(
-                  color: Color(0x22000000),
-                  blurRadius: 18,
-                  offset: Offset(0, 10),
-                ),
-              ]
-            : null,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: photoBytes == null
-          ? Center(
-              child: Text(
-                profile.initials,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: size * 0.28,
-                ),
-              ),
-            )
-          : Image.memory(
-              photoBytes,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                return Center(
-                  child: Text(
-                    profile.initials,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: size * 0.28,
-                    ),
-                  ),
-                );
-              },
-            ),
-    );
-  }
-}
-
-class _FrontMetaText extends StatelessWidget {
-  const _FrontMetaText({required this.value, required this.fontSize});
-
-  final String value;
-  final double fontSize;
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      value,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: Colors.white.withValues(alpha: 0.92),
-        fontSize: fontSize,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-}
-
-class _FrontIdentityBlock extends StatelessWidget {
-  const _FrontIdentityBlock({
-    required this.profile,
-    required this.cardWidth,
-    required this.nameSize,
-    required this.titleSize,
-    required this.metaSize,
-    required this.compact,
-    required this.tight,
-  });
-
-  final EmployeeProfile profile;
-  final double cardWidth;
-  final double nameSize;
-  final double titleSize;
-  final double metaSize;
-  final bool compact;
-  final bool tight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: (cardWidth * 0.16).clamp(40.0, 64.0),
-          height: 3,
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.42),
-            borderRadius: BorderRadius.circular(999),
-          ),
-        ),
-        SizedBox(height: compact ? 8 : 12),
-        Text(
-          [
-            profile.title,
-            profile.fullName,
-          ].where((value) => value.isNotEmpty).join(' '),
-          maxLines: tight ? 1 : (compact ? 2 : 3),
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: nameSize,
-            fontWeight: FontWeight.w800,
-            height: 1.08,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          [
-            profile.jobTitle,
-            profile.department,
-          ].where((value) => value.isNotEmpty).join(' • '),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.72),
-            fontSize: titleSize,
-            fontWeight: FontWeight.w600,
-            height: 1.2,
-          ),
-        ),
-        SizedBox(height: compact ? 10 : 14),
-        if (profile.primaryPhone.isNotEmpty)
-          _FrontMetaText(value: profile.primaryPhone, fontSize: metaSize),
-        if (!tight &&
-            profile.primaryPhone.isNotEmpty &&
-            profile.email.isNotEmpty)
-          const SizedBox(height: 4),
-        if (!tight && profile.email.isNotEmpty)
-          _FrontMetaText(
-            value: profile.email.toUpperCase(),
-            fontSize: metaSize,
-          ),
-      ],
-    );
-  }
-}
-
-class _CardBrandHeader extends StatelessWidget {
-  const _CardBrandHeader({this.logoSize = 40});
-
-  final double logoSize;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: logoSize,
-          height: logoSize,
-          padding: const EdgeInsets.all(5),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.16),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Image.asset('asset/logo.png', fit: BoxFit.contain),
-        ),
-        const SizedBox(width: 10),
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'አቢሲኒያ ባንክ',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              SizedBox(height: 2),
-              Text(
-                'Bank of Abyssinia',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Color(0xE6FFFFFF),
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _CardIdPill extends StatelessWidget {
-  const _CardIdPill({required this.id});
-
-  final String id;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
-      ),
-      child: Text(
-        'ID $id',
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
-  }
-}
-
-class _BackQrPanel extends StatelessWidget {
-  const _BackQrPanel({required this.qrData, required this.qrSize});
-
-  final String qrData;
-  final double qrSize;
-
-  @override
-  Widget build(BuildContext context) {
-    final panelWidth = qrSize + (qrSize * 0.18);
-    return Container(
-      width: panelWidth,
-      padding: EdgeInsets.all((qrSize * 0.08).clamp(8.0, 12.0)),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0x1A0F172A), width: 1),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          QrImageView(
-            data: qrData,
-            version: QrVersions.auto,
-            size: qrSize,
-            backgroundColor: Colors.white,
-            eyeStyle: const QrEyeStyle(
-              eyeShape: QrEyeShape.square,
-              color: DigitalCardPage._textPrimary,
-            ),
-            dataModuleStyle: const QrDataModuleStyle(
-              dataModuleShape: QrDataModuleShape.square,
-              color: DigitalCardPage._textPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BackMetaRow extends StatelessWidget {
-  const _BackMetaRow({required this.label, required this.value});
-
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0x73111827),
-            fontSize: 10.5,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value.isEmpty ? 'Unavailable' : value,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: DigitalCardPage._textPrimary,
-            fontSize: 13.5,
-            fontWeight: FontWeight.w600,
-            height: 1.25,
-          ),
-        ),
-      ],
     );
   }
 }

@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'app_theme.dart';
 import 'auth_service.dart';
 import 'digital_card_page.dart';
 import 'login_page.dart';
 import 'session_store.dart';
 import 'session_user.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await HardwareKeyboard.instance.syncKeyboardState();
   runApp(const MyApp());
 }
 
@@ -17,16 +22,31 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   final SessionStore _sessionStore = SessionStore();
   final AuthService _authService = AuthService();
   bool? _isLoggedIn;
   SessionUser? _sessionUser;
+  ThemeMode _themeMode = ThemeMode.system;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadSession();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(HardwareKeyboard.instance.syncKeyboardState());
+    }
   }
 
   Future<void> _loadSession() async {
@@ -77,6 +97,14 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  void _toggleThemeMode() {
+    setState(() {
+      _themeMode = _themeMode == ThemeMode.dark
+          ? ThemeMode.light
+          : ThemeMode.dark;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget home;
@@ -84,21 +112,25 @@ class _MyAppState extends State<MyApp> {
     if (_isLoggedIn == null) {
       home = const Scaffold(body: Center(child: CircularProgressIndicator()));
     } else if (_isLoggedIn == true) {
-      home = DigitalCardPage(sessionUser: _sessionUser!, onLogout: _logout);
+      home = DigitalCardPage(
+        sessionUser: _sessionUser!,
+        onLogout: _logout,
+        onToggleTheme: _toggleThemeMode,
+        themeMode: _themeMode,
+      );
     } else {
-      home = LoginPage(onLogin: _login);
+      home = LoginPage(
+        onLogin: _login,
+        onToggleTheme: _toggleThemeMode,
+        themeMode: _themeMode,
+      );
     }
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        fontFamily: 'Roboto',
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.red.shade700),
-        inputDecorationTheme: const InputDecorationTheme(
-          filled: true,
-          fillColor: Color(0xFFF7F7F7),
-        ),
-      ),
+      themeMode: _themeMode,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
       home: home,
     );
   }

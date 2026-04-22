@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({super.key, required this.onLogin});
+  const LoginPage({
+    super.key,
+    required this.onLogin,
+    required this.onToggleTheme,
+    required this.themeMode,
+  });
 
   final Future<void> Function(String username, String password) onLogin;
+  final VoidCallback onToggleTheme;
+  final ThemeMode themeMode;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -68,19 +75,53 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final backgroundTop = isDark ? const Color(0xFF0B0F14) : _backgroundTop;
+    final backgroundBottom = isDark
+        ? const Color(0xFF121922)
+        : _backgroundBottom;
+    final panelColor = isDark
+        ? const Color(0xE6111827)
+        : Colors.white.withValues(alpha: 0.9);
+    final bodyTextColor = isDark
+        ? const Color(0xFFE5E7EB)
+        : const Color(0xB8111827);
+    final headingColor = isDark
+        ? const Color(0xFFF9FAFB)
+        : const Color(0xFF111827);
+    final fieldIconColor = isDark
+        ? const Color(0xB3F3F4F6)
+        : const Color(0x8C111827);
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [_backgroundTop, _backgroundBottom],
+            colors: [backgroundTop, backgroundBottom],
           ),
         ),
         child: Stack(
           children: [
+            Positioned(
+              right: 12,
+              top: 12,
+              child: SafeArea(
+                child: IconButton(
+                  tooltip: widget.themeMode == ThemeMode.dark
+                      ? 'Switch to light theme'
+                      : 'Switch to dark theme',
+                  onPressed: widget.onToggleTheme,
+                  icon: Icon(
+                    widget.themeMode == ThemeMode.dark
+                        ? Icons.light_mode_rounded
+                        : Icons.dark_mode_rounded,
+                  ),
+                ),
+              ),
+            ),
             Positioned(
               top: -120,
               left: -40,
@@ -108,14 +149,18 @@ class _LoginPageState extends State<LoginPage> {
                     constraints: const BoxConstraints(maxWidth: 420),
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: panelColor,
                         borderRadius: BorderRadius.circular(32),
                         border: Border.all(
-                          color: Colors.black.withValues(alpha: 0.08),
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : Colors.black.withValues(alpha: 0.08),
                         ),
-                        boxShadow: const [
+                        boxShadow: [
                           BoxShadow(
-                            color: Color(0x1A0F172A),
+                            color: isDark
+                                ? const Color(0x59000000)
+                                : const Color(0x1A0F172A),
                             blurRadius: 70,
                             offset: Offset(0, 24),
                           ),
@@ -165,7 +210,7 @@ class _LoginPageState extends State<LoginPage> {
                                           'Welcome back',
                                           style: theme.textTheme.headlineSmall
                                               ?.copyWith(
-                                                color: const Color(0xFF111827),
+                                                color: headingColor,
                                                 fontWeight: FontWeight.w700,
                                               ),
                                         ),
@@ -178,7 +223,7 @@ class _LoginPageState extends State<LoginPage> {
                               Text(
                                 'Enter your work email or username and password to continue on this phone.',
                                 style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: const Color(0xB8111827),
+                                  color: bodyTextColor,
                                   height: 1.45,
                                 ),
                               ),
@@ -186,9 +231,9 @@ class _LoginPageState extends State<LoginPage> {
                               _FieldLabel(
                                 label: 'Email or Username',
                                 child: _DecoratedField(
-                                  leading: const Icon(
+                                  leading: Icon(
                                     Icons.mail_outline_rounded,
-                                    color: Color(0x8C111827),
+                                    color: fieldIconColor,
                                     size: 20,
                                   ),
                                   child: TextFormField(
@@ -199,6 +244,11 @@ class _LoginPageState extends State<LoginPage> {
                                       hintText: 'Enter your Email or Username',
                                       border: InputBorder.none,
                                       isDense: true,
+                                    ),
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? const Color(0xFFF9FAFB)
+                                          : const Color(0xFF111827),
                                     ),
                                     validator: (value) {
                                       final identifier = value?.trim() ?? '';
@@ -214,9 +264,9 @@ class _LoginPageState extends State<LoginPage> {
                               _FieldLabel(
                                 label: 'Password',
                                 child: _DecoratedField(
-                                  leading: const Icon(
+                                  leading: Icon(
                                     Icons.lock_outline_rounded,
-                                    color: Color(0x8C111827),
+                                    color: fieldIconColor,
                                     size: 20,
                                   ),
                                   trailing: IconButton(
@@ -230,7 +280,7 @@ class _LoginPageState extends State<LoginPage> {
                                       _obscurePassword
                                           ? Icons.visibility_off_outlined
                                           : Icons.visibility_outlined,
-                                      color: const Color(0x8C111827),
+                                      color: fieldIconColor,
                                     ),
                                   ),
                                   child: TextFormField(
@@ -242,6 +292,11 @@ class _LoginPageState extends State<LoginPage> {
                                       hintText: 'Enter your password',
                                       border: InputBorder.none,
                                       isDense: true,
+                                    ),
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? const Color(0xFFF9FAFB)
+                                          : const Color(0xFF111827),
                                     ),
                                     validator: (value) {
                                       if ((value ?? '').isEmpty) {
@@ -353,13 +408,14 @@ class _FieldLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-            color: const Color(0xB8111827),
+            color: isDark ? const Color(0xCCF3F4F6) : const Color(0xB8111827),
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -383,6 +439,7 @@ class _DecoratedField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final children = <Widget?>[
       leading,
       const SizedBox(width: 10),
@@ -392,9 +449,15 @@ class _DecoratedField extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: _LoginPageState._fieldFill.withValues(alpha: 0.9),
+        color: isDark
+            ? const Color(0xCC1F2937)
+            : _LoginPageState._fieldFill.withValues(alpha: 0.9),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.black.withValues(alpha: 0.08)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
       child: Row(children: children),
