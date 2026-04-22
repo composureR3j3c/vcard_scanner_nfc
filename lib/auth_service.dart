@@ -38,7 +38,7 @@ class AuthService {
     if (user.id.isEmpty || user.username.isEmpty) {
       throw Exception('Login response is missing user id or username');
     }
-
+  
     return user;
   }
 }

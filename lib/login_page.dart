@@ -62,6 +62,17 @@ class _LoginPageState extends State<LoginPage> {
 
       setState(() {
         _errorMessage = error.toString().replaceFirst('Exception: ', '');
+        debugPrint('Login error: $_errorMessage');
+        if (error.toString().toLowerCase().contains('clientexception') ||
+            error.toString().toLowerCase().contains('socketexception') ||
+            error.toString().toLowerCase().contains('timeout')) {
+          _errorMessage =
+              "Login failed. Please check your network connection and try again.";
+        } 
+        // else {
+        //   _errorMessage =
+        //       "Login failed. Please check your credentials and try again.";
+        // }
       });
     } finally {
       if (mounted) {
