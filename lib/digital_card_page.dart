@@ -266,7 +266,10 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '${snapshot.error ?? 'Please try again.'}',
+                              '${
+                              //   snapshot.error 
+                              // ??
+                               'Please try again.'}',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: isDark
@@ -283,7 +286,12 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                                 backgroundColor: DigitalCardPage._cardGold,
                                 foregroundColor: DigitalCardPage._cardGreenDeep,
                               ),
-                              child: const Text('Retry'),
+                              child: const Text('Retry',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black,)
+                                  ),
                             ),
                           ],
                         ),
