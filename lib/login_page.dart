@@ -5,12 +5,10 @@ class LoginPage extends StatefulWidget {
     super.key,
     required this.onLogin,
     required this.onToggleTheme,
-    required this.themeMode,
   });
 
   final Future<void> Function(String username, String password) onLogin;
   final VoidCallback onToggleTheme;
-  final ThemeMode themeMode;
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -68,7 +66,7 @@ class _LoginPageState extends State<LoginPage> {
             error.toString().toLowerCase().contains('timeout')) {
           _errorMessage =
               "Login failed. Please check your network connection and try again.";
-        } 
+        }
         // else {
         //   _errorMessage =
         //       "Login failed. Please check your credentials and try again.";
@@ -121,14 +119,12 @@ class _LoginPageState extends State<LoginPage> {
               top: 12,
               child: SafeArea(
                 child: IconButton(
-                  tooltip: widget.themeMode == ThemeMode.dark
+                  tooltip: isDark
                       ? 'Switch to light theme'
                       : 'Switch to dark theme',
                   onPressed: widget.onToggleTheme,
                   icon: Icon(
-                    widget.themeMode == ThemeMode.dark
-                        ? Icons.light_mode_rounded
-                        : Icons.dark_mode_rounded,
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
                   ),
                 ),
               ),

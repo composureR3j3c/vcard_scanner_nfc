@@ -7,6 +7,7 @@ import 'session_user.dart';
 class SessionStore {
   static const _isLoggedInKey = 'is_logged_in';
   static const _userKey = 'session_user';
+  static const _profileKeyPrefix = 'employee_profile_';
 
   Future<bool> isLoggedIn() async {
     final prefs = await SharedPreferences.getInstance();
@@ -36,7 +37,13 @@ class SessionStore {
 
   Future<void> clearLogin() async {
     final prefs = await SharedPreferences.getInstance();
+    final user = await getUser();
+
     await prefs.remove(_isLoggedInKey);
     await prefs.remove(_userKey);
+
+    if (user != null) {
+      await prefs.remove('$_profileKeyPrefix${user.id}');
+    }
   }
 }

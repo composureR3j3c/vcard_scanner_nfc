@@ -95,6 +95,25 @@ class EmployeeProfile {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'iD': id,
+      'Title': title,
+      'firstName': firstName,
+      'middleName': middleName,
+      'lastName': lastName,
+      'Email': email,
+      'jobTitle': jobTitle,
+      'Department': department,
+      'Employer': employer,
+      'Office': office,
+      'City': city,
+      'Country': country,
+      'phoneNumber': phoneNumbers,
+      'Photo': photoBytes == null ? '' : base64Encode(photoBytes!),
+    };
+  }
+
   static String _normalizePhone(String phone) {
     return phone.startsWith('+') ? phone : '+$phone';
   }

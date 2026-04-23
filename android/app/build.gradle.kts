@@ -14,6 +14,8 @@ if (keystorePropertiesFile.exists()) {
     keystorePropertiesFile.inputStream().use(keystoreProperties::load)
 }
 
+fun Properties.getTrimmed(name: String): String? = getProperty(name)?.trim()
+
 android {
     namespace = "com.example.nfc_digital_card"
     compileSdk = flutter.compileSdkVersion
@@ -31,10 +33,10 @@ android {
     signingConfigs {
         create("release") {
             if (keystorePropertiesFile.exists()) {
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = keystoreProperties.getTrimmed("storeFile")?.let(::file)
+                storePassword = keystoreProperties.getTrimmed("storePassword")
+                keyAlias = keystoreProperties.getTrimmed("keyAlias")
+                keyPassword = keystoreProperties.getTrimmed("keyPassword")
             }
         }
     }

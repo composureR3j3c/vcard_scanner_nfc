@@ -4,7 +4,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import 'employee_profile.dart';
 import 'employee_profile_service.dart';
-import 'nfc_writer.dart';
+import 'employee_profile_store.dart';
 import 'session_user.dart';
 import 'utils/vcard_generator.dart';
 import 'widgets/employee_id_deck.dart';
@@ -15,17 +15,14 @@ class DigitalCardPage extends StatefulWidget {
     required this.sessionUser,
     required this.onLogout,
     required this.onToggleTheme,
-    required this.themeMode,
   });
 
   static const _cardGreenDeep = Color(0xFFD8A328);
   static const _cardGold = Color(0xFFD8A328);
   static const _textPrimary = Color(0xFF111827);
-  static const _panelFill = Color(0xCCFFFFFF);
   final SessionUser sessionUser;
   final Future<void> Function() onLogout;
   final VoidCallback onToggleTheme;
-  final ThemeMode themeMode;
 
   @override
   State<DigitalCardPage> createState() => _DigitalCardPageState();
@@ -33,9 +30,11 @@ class DigitalCardPage extends StatefulWidget {
 
 class _DigitalCardPageState extends State<DigitalCardPage> {
   final EmployeeProfileService _profileService = EmployeeProfileService();
+  final EmployeeProfileStore _profileStore = EmployeeProfileStore();
   late Future<EmployeeProfile> _profileFuture;
   String? _copiedValue;
   bool _isRefreshing = false;
+  bool _isUsingOfflineProfile = false;
 
   @override
   void initState() {
@@ -43,8 +42,39 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
     _profileFuture = _loadProfile();
   }
 
-  Future<EmployeeProfile> _loadProfile() {
-    return _profileService.fetchProfile(employeeId: widget.sessionUser.id);
+  Future<EmployeeProfile> _loadProfile({bool forceRefresh = false}) async {
+    try {
+      final profile = await _profileService.fetchProfile(
+        employeeId: widget.sessionUser.id,
+      );
+      await _profileStore.saveProfile(profile);
+
+      if (mounted && _isUsingOfflineProfile) {
+        setState(() {
+          _isUsingOfflineProfile = false;
+        });
+      } else {
+        _isUsingOfflineProfile = false;
+      }
+
+      return profile;
+    } catch (_) {
+      final cachedProfile = await _profileStore.getProfile(
+        widget.sessionUser.id,
+      );
+      if (cachedProfile != null) {
+        if (mounted && !_isUsingOfflineProfile) {
+          setState(() {
+            _isUsingOfflineProfile = true;
+          });
+        } else {
+          _isUsingOfflineProfile = true;
+        }
+        return cachedProfile;
+      }
+
+      rethrow;
+    }
   }
 
   void _retry() {
@@ -79,7 +109,7 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
     });
   }
 
-  Future<void> _showRefreshLoading() async {
+  Future<void> _refreshProfile() async {
     if (_isRefreshing) {
       return;
     }
@@ -88,7 +118,41 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
       _isRefreshing = true;
     });
 
-    await Future<void>.delayed(const Duration(seconds: 1));
+    try {
+      final future = _loadProfile(forceRefresh: true);
+
+      if (mounted) {
+        setState(() {
+          _profileFuture = future;
+        });
+      } else {
+        _profileFuture = future;
+      }
+
+      await future;
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isUsingOfflineProfile
+                ? 'Offline mode: showing saved card data.'
+                : 'Card updated successfully.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Unable to refresh card data: $error')),
+      );
+    }
 
     if (!mounted) {
       return;
@@ -178,19 +242,15 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                   )
                 : IconButton(
                     tooltip: 'Refresh',
-                    onPressed: _showRefreshLoading,
+                    onPressed: _refreshProfile,
                     icon: const Icon(Icons.refresh_rounded),
                   ),
           ),
           IconButton(
-            tooltip: widget.themeMode == ThemeMode.dark
-                ? 'Switch to light theme'
-                : 'Switch to dark theme',
+            tooltip: isDark ? 'Switch to light theme' : 'Switch to dark theme',
             onPressed: widget.onToggleTheme,
             icon: Icon(
-              widget.themeMode == ThemeMode.dark
-                  ? Icons.light_mode_rounded
-                  : Icons.dark_mode_rounded,
+              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
             ),
           ),
           IconButton(
@@ -266,10 +326,7 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '${
-                              //   snapshot.error 
-                              // ??
-                               'Please try again.'}',
+                              'Please try again.',
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                 color: isDark
@@ -286,12 +343,14 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                                 backgroundColor: DigitalCardPage._cardGold,
                                 foregroundColor: DigitalCardPage._cardGreenDeep,
                               ),
-                              child: const Text('Retry',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w700,
-                                    color: Colors.black,)
-                                  ),
+                              child: const Text(
+                                'Retry',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.black,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -314,6 +373,10 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
+                                if (_isUsingOfflineProfile) ...[
+                                  const _OfflineNotice(),
+                                  const SizedBox(height: 16),
+                                ],
                                 _buildCardAndDetails(
                                   isWide: isWide,
                                   profile: profile,
@@ -354,7 +417,7 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Digital ID Card',
+            'Business Card',
             style: TextStyle(
               color: DigitalCardPage._cardGreenDeep,
               fontSize: 12,
@@ -402,12 +465,6 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
           const SizedBox(height: 12),
           _DetailTile(label: 'Office', value: profile.office),
           const SizedBox(height: 12),
-          _PublicQrTile(
-            url: publicCardUrl,
-            copied: _copiedValue == publicCardUrl,
-            onCopy: () => _copyToClipboard(publicCardUrl),
-          ),
-          const SizedBox(height: 12),
           _DetailTile(
             label: 'Location',
             value: [
@@ -415,6 +472,13 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
               profile.country,
             ].where((value) => value.isNotEmpty).join(', '),
           ),
+          const SizedBox(height: 12),
+          _PublicQrTile(
+            url: publicCardUrl,
+            copied: _copiedValue == publicCardUrl,
+            onCopy: () => _copyToClipboard(publicCardUrl),
+          ),
+          
         ],
       ),
     );
@@ -438,95 +502,41 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        topSection,
-        const SizedBox(height: 0),
-        // _QrSection(vcard: vcard, publicCardUrl: publicCardUrl),
-      ],
+      children: [topSection],
     );
   }
+}
 
-  Widget _buildNfcButton(BuildContext context, String vcard) {
+class _OfflineNotice extends StatelessWidget {
+  const _OfflineNotice();
+
+  @override
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(24),
-        color: isDark ? const Color(0xCC111827) : DigitalCardPage._panelFill,
+        color: isDark ? const Color(0xCC3A2F12) : const Color(0xFFF8E8BD),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark
-              ? Colors.white.withValues(alpha: 0.1)
-              : Colors.black.withValues(alpha: 0.08),
+          color: DigitalCardPage._cardGold.withValues(alpha: 0.35),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? const Color(0x40000000) : const Color(0x140F172A),
-            blurRadius: 36,
-            offset: Offset(0, 14),
-          ),
-        ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
           children: [
-            Text(
-              'Write to NFC',
-              style: TextStyle(
-                color: isDark
-                    ? const Color(0xFFF9FAFB)
-                    : DigitalCardPage._textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap below, then hold your phone near the NFC tag to save this contact card.',
-              style: TextStyle(
-                color: isDark
-                    ? const Color(0xCCF3F4F6)
-                    : const Color(0xA6111827),
-                fontSize: 14,
-                height: 1.45,
-              ),
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: () async {
-                final messenger = ScaffoldMessenger.of(context);
-
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('Hold phone near NFC tag...')),
-                );
-
-                try {
-                  await NFCWriter().writeToTag(vcard);
-
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('NFC written successfully ✅')),
-                  );
-                } catch (e) {
-                  messenger.showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to write NFC : ${e.toString()}'),
-                    ),
-                  );
-                }
-              },
-              style: FilledButton.styleFrom(
-                backgroundColor: DigitalCardPage._cardGold,
-                foregroundColor: DigitalCardPage._cardGreenDeep,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
+            Icon(Icons.offline_bolt_rounded, color: Colors.black87, size: 20),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Offline mode: showing the last saved card data on this device.',
+                style: TextStyle(
+                  color: Colors.black87,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
               ),
-              child: const Text('Tap to Write NFC'),
             ),
           ],
         ),
@@ -781,103 +791,6 @@ class _PublicQrTile extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _QrCard extends StatelessWidget {
-  const _QrCard({
-    required this.title,
-    required this.description,
-    required this.data,
-  });
-
-  final String title;
-  final String description;
-  final String data;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final cardWidth = constraints.maxWidth.isFinite
-            ? constraints.maxWidth
-            : MediaQuery.sizeOf(context).width;
-        final qrSize = (cardWidth * 0.62).clamp(132.0, 190.0);
-        final qrPadding = (cardWidth * 0.045).clamp(10.0, 14.0);
-
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xB31F2937)
-                : Colors.white.withValues(alpha: 0.62),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    color: isDark
-                        ? const Color(0xFFF9FAFB)
-                        : const Color(0xFF111827),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  description,
-                  style: TextStyle(
-                    color: isDark
-                        ? const Color(0xB3F3F4F6)
-                        : const Color(0xA6111827),
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Center(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x140F172A),
-                          blurRadius: 28,
-                          offset: Offset(0, 14),
-                        ),
-                      ],
-                    ),
-                    child: Padding(
-                      padding: EdgeInsets.all(qrPadding),
-                      child: QrImageView(
-                        data: data,
-                        version: QrVersions.auto,
-                        size: qrSize,
-                        backgroundColor: Colors.white,
-                        eyeStyle: const QrEyeStyle(
-                          eyeShape: QrEyeShape.square,
-                          color: DigitalCardPage._cardGreenDeep,
-                        ),
-                        dataModuleStyle: const QrDataModuleStyle(
-                          dataModuleShape: QrDataModuleShape.square,
-                          color: DigitalCardPage._textPrimary,
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               ],

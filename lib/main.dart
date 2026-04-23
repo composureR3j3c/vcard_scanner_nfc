@@ -98,10 +98,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 
   void _toggleThemeMode() {
+    final platformBrightness =
+        WidgetsBinding.instance.platformDispatcher.platformBrightness;
+    final isDarkNow = _themeMode == ThemeMode.system
+        ? platformBrightness == Brightness.dark
+        : _themeMode == ThemeMode.dark;
+
     setState(() {
-      _themeMode = _themeMode == ThemeMode.dark
-          ? ThemeMode.light
-          : ThemeMode.dark;
+      _themeMode = isDarkNow ? ThemeMode.light : ThemeMode.dark;
     });
   }
 
@@ -116,14 +120,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         sessionUser: _sessionUser!,
         onLogout: _logout,
         onToggleTheme: _toggleThemeMode,
-        themeMode: _themeMode,
       );
     } else {
-      home = LoginPage(
-        onLogin: _login,
-        onToggleTheme: _toggleThemeMode,
-        themeMode: _themeMode,
-      );
+      home = LoginPage(onLogin: _login, onToggleTheme: _toggleThemeMode);
     }
 
     return MaterialApp(
