@@ -4,7 +4,6 @@ import '../employee_profile.dart';
 
 String generateEmployeeVCard(EmployeeProfile profile) {
   final slug = profile.publicProfileSlug;
-  final photoUrl = 'https://businesscard.bankofabyssinia.com/api/u/$slug/photo';
   final publicUrl = 'https://businesscard.bankofabyssinia.com/u/$slug';
 
   final lines = <String>[

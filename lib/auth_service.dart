@@ -7,6 +7,8 @@ import 'session_user.dart';
 class AuthService {
   static const String _loginUrl =
       'https://businesscard.bankofabyssinia.com/api/login';
+  static const String _loginSecret =
+      'bA7wZpK3NfQ2tY9sVxL4mJ8rH6cD1eG5uT0kS9nP2yR7wX4z';
 
   Future<SessionUser> login({
     required String username,
@@ -15,7 +17,10 @@ class AuthService {
     final response = await http
         .post(
           Uri.parse(_loginUrl),
-          headers: const {'Content-Type': 'application/json'},
+          headers: const {
+            'Content-Type': 'application/json',
+            'x-api-login-secret': _loginSecret,
+          },
           body: jsonEncode({'username': username.trim(), 'password': password}),
         )
         .timeout(const Duration(seconds: 20));
@@ -38,7 +43,7 @@ class AuthService {
     if (user.id.isEmpty || user.username.isEmpty) {
       throw Exception('Login response is missing user id or username');
     }
-  
+
     return user;
   }
 }
