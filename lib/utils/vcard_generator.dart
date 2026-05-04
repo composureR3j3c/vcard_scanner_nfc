@@ -47,7 +47,7 @@ String generateEmployeeVCard(EmployeeProfile profile) {
     );
   }
 
-  lines.add('PHOTO;VALUE=uri:$photoUrl');
+  // lines.add('PHOTO;VALUE=uri:$photoUrl');
   lines.add('URL:$publicUrl');
   lines.add('END:VCARD');
 
