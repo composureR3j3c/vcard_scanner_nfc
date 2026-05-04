@@ -71,27 +71,27 @@ class EmployeeProfile {
   }
 
   factory EmployeeProfile.fromJson(Map<String, dynamic> json) {
-    final photo = (json['Photo'] as String? ?? '').trim();
+    final photo = _readString(json, const ['image', 'Photo']);
 
     return EmployeeProfile(
-      id: (json['iD'] as String? ?? '').trim(),
-      title: (json['Title'] as String? ?? '').trim(),
-      firstName: (json['firstName'] as String? ?? '').trim(),
-      middleName: (json['middleName'] as String? ?? '').trim(),
-      lastName: (json['lastName'] as String? ?? '').trim(),
-      email: (json['Email'] as String? ?? '').trim().toLowerCase(),
-      jobTitle: (json['jobTitle'] as String? ?? '').trim(),
-      department: (json['Department'] as String? ?? '').trim(),
-      employer: (json['Employer'] as String? ?? '').trim(),
-      office: (json['Office'] as String? ?? '').trim(),
-      city: (json['City'] as String? ?? '').trim(),
-      country: (json['Country'] as String? ?? '').trim(),
-      phoneNumbers: ((json['phoneNumber'] as List<dynamic>? ?? const [])
+      id: _readString(json, const ['centralId', 'localId', 'iD', 'id']),
+      title: _readString(json, const ['title', 'Title']),
+      firstName: _readString(json, const ['firstName']),
+      middleName: _readString(json, const ['middleName']),
+      lastName: _readString(json, const ['lastName']),
+      email: _readString(json, const ['email', 'Email']).toLowerCase(),
+      jobTitle: _readString(json, const ['jobTitle']),
+      department: _readString(json, const ['department', 'Department']),
+      employer: _readString(json, const ['employer', 'Employer']),
+      office: _readString(json, const ['office', 'Office']),
+      city: _readString(json, const ['city', 'City']),
+      country: _readString(json, const ['country', 'Country']),
+      phoneNumbers: ((_readList(json, const ['phone', 'phoneNumber']))
           .map((value) => value.toString().trim())
           .where((value) => value.isNotEmpty)
           .map(_normalizePhone)
           .toList()),
-      photoBytes: photo.isEmpty ? null : base64Decode(photo),
+      photoBytes: _decodePhoto(photo),
     );
   }
 
@@ -116,5 +116,36 @@ class EmployeeProfile {
 
   static String _normalizePhone(String phone) {
     return phone.startsWith('+') ? phone : '+$phone';
+  }
+
+  static String _readString(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is String && value.trim().isNotEmpty) {
+        return value.trim();
+      }
+    }
+
+    return '';
+  }
+
+  static List<dynamic> _readList(Map<String, dynamic> json, List<String> keys) {
+    for (final key in keys) {
+      final value = json[key];
+      if (value is List<dynamic>) {
+        return value;
+      }
+    }
+
+    return const [];
+  }
+
+  static Uint8List? _decodePhoto(String photo) {
+    if (photo.isEmpty) {
+      return null;
+    }
+
+    final base64Photo = photo.contains(',') ? photo.split(',').last : photo;
+    return base64Decode(base64Photo);
   }
 }

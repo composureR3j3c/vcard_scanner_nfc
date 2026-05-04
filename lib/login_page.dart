@@ -59,18 +59,7 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       setState(() {
-        _errorMessage = error.toString().replaceFirst('Exception: ', '');
-        debugPrint('Login error: $_errorMessage');
-        if (error.toString().toLowerCase().contains('clientexception') ||
-            error.toString().toLowerCase().contains('socketexception') ||
-            error.toString().toLowerCase().contains('timeout')) {
-          _errorMessage =
-              "Login failed. Please check your network connection and try again.";
-        }
-        // else {
-        //   _errorMessage =
-        //       "Login failed. Please check your credentials and try again.";
-        // }
+        _errorMessage = _safeLoginErrorMessage(error);
       });
     } finally {
       if (mounted) {
@@ -79,6 +68,21 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     }
+  }
+
+  String _safeLoginErrorMessage(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
+    const allowedMessages = {
+      'Password must be at least 6 characters',
+      'Login failed. Please check your network connection and try again.',
+      'Login failed. Please check your credentials and try again.',
+      'Login failed. Please try again.',
+    };
+    if (allowedMessages.contains(message)) {
+      return message;
+    }
+
+    return 'Login failed. Please try again.';
   }
 
   @override

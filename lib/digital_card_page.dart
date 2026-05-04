@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
+import 'auth_service.dart';
 import 'employee_profile.dart';
 import 'employee_profile_service.dart';
 import 'employee_profile_store.dart';
@@ -13,6 +14,7 @@ class DigitalCardPage extends StatefulWidget {
   const DigitalCardPage({
     super.key,
     required this.sessionUser,
+    required this.onSessionUserChanged,
     required this.onLogout,
     required this.onToggleTheme,
   });
@@ -21,6 +23,7 @@ class DigitalCardPage extends StatefulWidget {
   static const _cardGold = Color(0xFFD8A328);
   static const _textPrimary = Color(0xFF111827);
   final SessionUser sessionUser;
+  final Future<void> Function(SessionUser user) onSessionUserChanged;
   final Future<void> Function() onLogout;
   final VoidCallback onToggleTheme;
 
@@ -29,9 +32,11 @@ class DigitalCardPage extends StatefulWidget {
 }
 
 class _DigitalCardPageState extends State<DigitalCardPage> {
+  final AuthService _authService = AuthService();
   final EmployeeProfileService _profileService = EmployeeProfileService();
   final EmployeeProfileStore _profileStore = EmployeeProfileStore();
   late Future<EmployeeProfile> _profileFuture;
+  late SessionUser _sessionUser;
   String? _copiedValue;
   bool _isRefreshing = false;
   bool _isUsingOfflineProfile = false;
@@ -39,15 +44,28 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
   @override
   void initState() {
     super.initState();
+    _sessionUser = widget.sessionUser;
     _profileFuture = _loadProfile();
+  }
+
+  @override
+  void didUpdateWidget(covariant DigitalCardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.sessionUser != oldWidget.sessionUser) {
+      _sessionUser = widget.sessionUser;
+    }
   }
 
   Future<EmployeeProfile> _loadProfile({bool forceRefresh = false}) async {
     try {
+      final user = await _ensureAccessToken(forceRefresh: forceRefresh);
       final profile = await _profileService.fetchProfile(
-        employeeId: widget.sessionUser.id,
+        accessToken: user.accessToken,
       );
-      await _profileStore.saveProfile(profile);
+      await _profileStore.saveProfile(
+        profile,
+        cacheKeys: _profileCacheKeys(profile.id),
+      );
 
       if (mounted && _isUsingOfflineProfile) {
         setState(() {
@@ -58,10 +76,54 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
       }
 
       return profile;
+    } on EmployeeProfileException catch (error) {
+      if (error.needsTokenRefresh) {
+        try {
+          final refreshedUser = await _refreshSession(
+            forceLogout: forceRefresh,
+          );
+
+          final profile = await _profileService.fetchProfile(
+            accessToken: refreshedUser.accessToken,
+          );
+          await _profileStore.saveProfile(
+            profile,
+            cacheKeys: _profileCacheKeys(profile.id),
+          );
+
+          if (mounted && _isUsingOfflineProfile) {
+            setState(() {
+              _isUsingOfflineProfile = false;
+            });
+          } else {
+            _isUsingOfflineProfile = false;
+          }
+
+          return profile;
+        } on RefreshTokenExpiredException {
+          if (forceRefresh) {
+            await widget.onLogout();
+          }
+        } catch (_) {
+          // Fall back to cached profile below.
+        }
+      }
+
+      final cachedProfile = await _getCachedProfile();
+      if (cachedProfile != null) {
+        if (mounted && !_isUsingOfflineProfile) {
+          setState(() {
+            _isUsingOfflineProfile = true;
+          });
+        } else {
+          _isUsingOfflineProfile = true;
+        }
+        return cachedProfile;
+      }
+
+      rethrow;
     } catch (_) {
-      final cachedProfile = await _profileStore.getProfile(
-        widget.sessionUser.id,
-      );
+      final cachedProfile = await _getCachedProfile();
       if (cachedProfile != null) {
         if (mounted && !_isUsingOfflineProfile) {
           setState(() {
@@ -78,9 +140,54 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
   }
 
   void _retry() {
+    final profileFuture = _loadProfile();
     setState(() {
-      _profileFuture = _loadProfile();
+      _profileFuture = profileFuture;
     });
+  }
+
+  Future<SessionUser> _ensureAccessToken({required bool forceRefresh}) async {
+    if (_sessionUser.accessToken.trim().isNotEmpty) {
+      return _sessionUser;
+    }
+
+    return _refreshSession(forceLogout: forceRefresh);
+  }
+
+  Future<SessionUser> _refreshSession({required bool forceLogout}) async {
+    try {
+      final refreshedUser = await _authService.refreshSession(_sessionUser);
+      _sessionUser = refreshedUser;
+      await widget.onSessionUserChanged(refreshedUser);
+      return refreshedUser;
+    } on RefreshTokenExpiredException {
+      if (forceLogout) {
+        await widget.onLogout();
+      }
+
+      throw const EmployeeProfileException('Unable to load employee data.');
+    }
+  }
+
+  Future<EmployeeProfile?> _getCachedProfile() async {
+    for (final key in _profileCacheKeys()) {
+      final profile = await _profileStore.getProfile(key);
+      if (profile != null) {
+        return profile;
+      }
+    }
+
+    return null;
+  }
+
+  List<String> _profileCacheKeys([String? profileId]) {
+    return {
+      if (profileId != null && profileId.trim().isNotEmpty) profileId.trim(),
+      if (widget.sessionUser.localId.trim().isNotEmpty)
+        widget.sessionUser.localId.trim(),
+      if (_sessionUser.localId.trim().isNotEmpty) _sessionUser.localId.trim(),
+      if (_sessionUser.id.trim().isNotEmpty) _sessionUser.id.trim(),
+    }.toList();
   }
 
   Future<void> _copyToClipboard(String value) async {
@@ -150,7 +257,7 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unable to refresh card data: $error')),
+        const SnackBar(content: Text('Unable to refresh card data.')),
       );
     }
 
@@ -410,7 +517,7 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
         ? const Color(0xFFF3F4F6)
         : const Color(0xA6111827);
     final publicCardUrl =
-        'https://businesscard.bankofabyssinia.com/u/${widget.sessionUser.username}';
+        'https://businesscard.bankofabyssinia.com/u/${_sessionUser.username}';
 
     final cardPanel = _SurfacePanel(
       child: Column(
@@ -478,7 +585,6 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
             copied: _copiedValue == publicCardUrl,
             onCopy: () => _copyToClipboard(publicCardUrl),
           ),
-          
         ],
       ),
     );

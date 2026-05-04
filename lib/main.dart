@@ -97,6 +97,18 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     });
   }
 
+  Future<void> _updateSessionUser(SessionUser user) async {
+    await _sessionStore.saveLogin(user: user);
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _sessionUser = user;
+    });
+  }
+
   void _toggleThemeMode() {
     final platformBrightness =
         WidgetsBinding.instance.platformDispatcher.platformBrightness;
@@ -118,6 +130,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     } else if (_isLoggedIn == true) {
       home = DigitalCardPage(
         sessionUser: _sessionUser!,
+        onSessionUserChanged: _updateSessionUser,
         onLogout: _logout,
         onToggleTheme: _toggleThemeMode,
       );

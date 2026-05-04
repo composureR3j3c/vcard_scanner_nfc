@@ -22,12 +22,20 @@ class EmployeeProfileStore {
     return EmployeeProfile.fromJson(decoded);
   }
 
-  Future<void> saveProfile(EmployeeProfile profile) async {
+  Future<void> saveProfile(
+    EmployeeProfile profile, {
+    List<String> cacheKeys = const [],
+  }) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _profileKey(profile.id),
-      jsonEncode(profile.toJson()),
-    );
+    final encodedProfile = jsonEncode(profile.toJson());
+    final keys = {
+      profile.id,
+      ...cacheKeys,
+    }.map((value) => value.trim()).where((value) => value.isNotEmpty);
+
+    for (final key in keys) {
+      await prefs.setString(_profileKey(key), encodedProfile);
+    }
   }
 
   Future<void> clearProfile(String employeeId) async {
