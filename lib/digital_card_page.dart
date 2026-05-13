@@ -518,6 +518,7 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
         : const Color(0xA6111827);
     final publicCardUrl =
         'https://businesscard.bankofabyssinia.com/u/${_sessionUser.username}';
+    final alternatePhone = profile.phoneNumbers.skip(1).firstOrNull ?? '';
 
     final cardPanel = _SurfacePanel(
       child: Column(
@@ -566,6 +567,10 @@ class _DigitalCardPageState extends State<DigitalCardPage> {
           const SizedBox(height: 12),
           if (profile.primaryPhone.isNotEmpty) ...[
             _DetailTile(label: 'Phone', value: profile.primaryPhone),
+            if (alternatePhone.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _DetailTile(label: 'Alternate Phone', value: alternatePhone),
+            ],
             const SizedBox(height: 12),
           ],
           _DetailTile(label: 'Department', value: profile.department),
